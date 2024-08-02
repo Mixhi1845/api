@@ -7,7 +7,13 @@ app, rt = fast_app()
 
 @app.get("/")
 def home():
-    return Ul(
+    return Socials(
+        title="Vitrina API",
+        site_name="Vitrina",
+        description="The API for the chart agregator Vitrina",
+        image="https://vercel.fyi/fasthtml-og",
+        url="https://api.vitrina.michaelwagner.cc",
+    ), Ul(
         Li(A("billboard-global-200", href="/api/v1/billboard-global-200")),
         Li(A("imdb", href="/api/v1/imdb")),
         Li("limc", href="/api/v1/limc"),
