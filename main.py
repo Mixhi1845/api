@@ -3,7 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
-app, rt = fast_app()
+app = FastHTML()
 
 
 @app.get("/")
@@ -11,32 +11,27 @@ def home():
     return (
         Title("Vitrina API"),
         Socials(
-            title="Vitrina API",
-            site_name="Vitrina",
+            title="API Index",
+            site_name="Vitrina API",
             description="The API for the chart agregator Vitrina",
             image="https://vercel.fyi/fasthtml-og",
             url="https://api.vitrina.michaelwagner.cc",
         ),
         Ul(
-            Li(A("❌ amazon-books", href="/api/v1/amazon-books")),
+            Li(A("✅ pw-top-10", href="/api/v1/pw-top-10")),
             Li(A("✅ appstore-iphone", href="/api/v1/appstore-iphone")),
             Li(A("✅ billboard-global-200", href="/api/v1/billboard-global-200")),
             Li(A("✅ imdb", href="/api/v1/imdb")),
             Li(A("✅ netflix-top-10", href="/api/v1/netflix-top-10")),
-            Li(A("❌ steam-sales", href="/api/v1/steam-sales")),
+            Li(A("✅ steam-sales", href="/api/v1/steam-sales")),
         ),
     )
 
 
-@rt("/api/v1/amazon-books")
-def get():
-    today = datetime.now()
-    last_sunday = today - timedelta(days=today.weekday() + 1)
-    date_str = last_sunday.strftime("%Y-%m-%d")
-
+@app.get("/api/v1/pw-top-10")
+def pw():
     urls = {
-        "fiction": f"https://www.amazon.de/-/en/charts/{date_str}/mostread/fiction",
-        "nonfiction": f"https://www.amazon.de/-/en/charts/{date_str}/mostread/nonfiction",
+        "books": "https://www.publishersweekly.com/pw/nielsen/top100.html",
     }
 
     results = {}
@@ -45,11 +40,50 @@ def get():
         page = requests.get(url)
         soup = BeautifulSoup(page.content, "html.parser")
 
+        top_items = []
+        table = soup.select_one("table")
+        rows = table.select("tr")[1:]  # Skip the first row
+
+        for row in rows[:25]:
+            cells = row.find_all("td")
+
+            rank = cells[0].text.strip() if cells[0] else "N/A"
+            wks = cells[2].text.strip() if cells[2] else "N/A"
+            title = (
+                cells[3].select_one("div.nielsen-booktitle").text.strip()
+                if cells[3]
+                else "N/A"
+            )
+            author = (
+                cells[3].select_one("div:nth-of-type(2)").text.strip(", Author")
+                if cells[3]
+                else "N/A"
+            )
+            author = author.title()  # Convert to title case
+            pub = cells[4].text.strip() if cells[4] else "N/A"
+
+            info = {
+                "rank": rank,
+                "wks": wks,
+                "title": title,
+                "author": author,
+                "pub": pub,
+            }
+            top_items.append(info)
+
+        data_title = soup.select_one("div.nielsen-header").text.strip()
+        data_info = {
+            "data_title": data_title,
+            "data": top_items,
+        }
+
+        results[key] = data_info
+
     return results
 
 
-@rt("/api/v1/appstore-iphone")
-def get():
+@app.get("/api/v1/appstore-iphone")
+def appstore():
     country_codes = ["us", "de", "es", "in"]
     urls = {
         "free": {
@@ -82,16 +116,27 @@ def get():
                         by = copy.select_one("div.we-lockup__subtitle")
                         href = list_item.select_one("a.targeted-link")
 
+                        overlay = list_item.select_one("div.we-lockup__overlay")
+                        source_tag = overlay.find("source")
+
                         if id_tag and app and by and href:
                             id = int(id_tag.text.strip())
                             app_text = app.text.strip()
                             by_text = by.text.strip()
                             href_text = href.get("href")
 
+                            if source_tag and "srcset" in source_tag.attrs:
+                                srcset = source_tag["srcset"]
+                                image = srcset.split(",")[0].split(" ")[
+                                    0
+                                ]  # Get the first URL
+                            else:
+                                image = "N/A"
+
                             top_items.append(
                                 {
                                     "id": id,
-                                    "image": "-",
+                                    "image": image,
                                     "app": app_text,
                                     "by": by_text,
                                     "url": href_text,
@@ -100,7 +145,7 @@ def get():
 
                 data_title = soup.select_one("h2.section__headline")
                 results[key][country] = {
-                    "data_title": data_title.text.strip() if data_title else None,
+                    "data_title": data_title.text.strip() if data_title else "N/A",
                     "data": top_items,
                 }
             except requests.RequestException as e:
@@ -111,8 +156,8 @@ def get():
     return results
 
 
-@rt("/api/v1/billboard-global-200")
-def get():
+@app.get("/api/v1/billboard-global-200")
+def billboard():
     urls = {
         "music": "https://www.billboard.com/charts/billboard-global-200/",
     }
@@ -128,33 +173,41 @@ def get():
         # Use a more efficient way to select the top items
         chart_rows = soup.select("div.o-chart-results-list-row-container")
 
-        for list_item in chart_rows:
+        for list_item in chart_rows[:25]:
             id_tag = list_item.select_one("li.o-chart-results-list__item span.c-label")
-            id = int(id_tag.text.strip()) if id_tag else None
+            id = int(id_tag.text.strip()) if id_tag else "N/A"
+
+            image_tag = list_item.select_one("img.c-lazy-image__img")
+            if image_tag:
+                # Check for the lazy-loaded image source
+                image = image_tag.get("data-src") or image_tag.get("src")
+            else:
+                image = "N/A"
 
             title_tag = list_item.select_one("h3.c-title")
-            title = title_tag.text.strip() if title_tag else None
+            title = title_tag.text.strip() if title_tag else "N/A"
 
             artist_tag = list_item.select_one("span.c-label")
-            artist = artist_tag.text.strip() if artist_tag else None
+            artist = artist_tag.text.strip() if artist_tag else "N/A"
 
             type_tag = list_item.select_one(
                 "li.o-chart-results-list__item:nth-of-type(3) span.c-label"
             )
-            type = type_tag.text.strip().replace("\n", "") if type_tag else None
+            type = type_tag.text.strip().replace("\n", "") if type_tag else "N/A"
 
             peak_tag = list_item.select_one(
                 "li.o-chart-results-list__item:nth-of-type(5) span.c-label"
             )
-            peak = int(peak_tag.text.strip()) if peak_tag else None
+            peak = int(peak_tag.text.strip()) if peak_tag else "N/A"
 
             wks_tag = list_item.select_one(
                 "li.o-chart-results-list__item:nth-of-type(6) span.c-label"
             )
-            wks = int(wks_tag.text.strip()) if wks_tag else None
+            wks = int(wks_tag.text.strip()) if wks_tag else "N/A"
 
             info = {
                 "id": id,
+                "image": image,
                 "title": title,
                 "artist": artist,
                 "type": type,
@@ -169,17 +222,17 @@ def get():
         data_title = (
             soup.select_one("h1.c-heading").text.strip()
             if soup.select_one("h1.c-heading")
-            else None
+            else "N/A"
         )
         data_desc = (
             soup.select("p.c-tagline")[0].text.strip()
             if soup.select("p.c-tagline")
-            else None
+            else "N/A"
         )
         data_date = (
             soup.select("p.c-tagline")[6].text.strip()
             if len(soup.select("p.c-tagline")) > 6
-            else None
+            else "N/A"
         )
 
         nested_data = {
@@ -194,8 +247,8 @@ def get():
     return results
 
 
-@rt("/api/v1/imdb")
-def get():
+@app.get("/api/v1/imdb")
+def imdb():
     urls = {
         "movies": "https://www.imdb.com/chart/moviemeter/",
         "tv_shows": "https://www.imdb.com/chart/tvmeter/",
@@ -207,11 +260,10 @@ def get():
         page = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
         soup = BeautifulSoup(page.content, "html.parser")
 
-        # Select all relevant list items at once
         list_items = soup.select("li.ipc-metadata-list-summary-item")
 
         top_items = []
-        for list_item in list_items[:100]:  # Limit to 100 items
+        for list_item in list_items[:25]:
             title = list_item.select_one("h3.ipc-title__text").text.strip()
             rank = int(
                 list_item.select_one("div.meter-const-ranking").text.split(" ")[0]
@@ -291,8 +343,8 @@ def get():
     return results
 
 
-@rt("/api/v1/netflix-top-10")
-def get():
+@app.get("/api/v1/netflix-top-10")
+def netflix():
     urls = {
         "movies": "https://www.netflix.com/tudum/top10",
         "tv_shows": "https://www.netflix.com/tudum/top10/tv",
@@ -318,7 +370,7 @@ def get():
                 episode = "Season " + episode.strip()  # Retain "Season" keyword
             else:
                 title_part = title
-                episode = None
+                episode = "N/A"
 
             title = title_part.strip()
             wks = int(cells[2].text) if cells[2] else "N/A"
@@ -348,10 +400,10 @@ def get():
     return results
 
 
-@rt("/api/v1/steam-sales")
-def get():
+@app.get("/api/v1/steam-sales")
+def steam():
     urls = {
-        "games": "https://store.steampowered.com/charts/topselling/global",
+        "games": "https://steamplayercount.com/popular",
     }
 
     results = {}
@@ -360,12 +412,33 @@ def get():
         page = requests.get(url)
         soup = BeautifulSoup(page.content, "html.parser")
 
-        # top_items = []
+        top_items = []
+        table = soup.select_one("table")
+        rows = table.select("tr")[1:]  # Skip the first row
 
-        # table = soup.select_one("table")
-        # rows = table.select("tr")
+        for row in rows[:25]:
+            cells = row.find_all("td")
 
-        # Same logic as Netflix
+            img_tag = cells[0].find("img", class_="app-img") if cells[0] else "N/A"
+            img = img_tag["src"] if img_tag and "src" in img_tag.attrs else "N/A"
+
+            title = cells[1].text.strip() if cells[1] else "N/A"
+            playercount = cells[2].text if cells[2] else "N/A"
+
+            info = {
+                "img": img,
+                "title": title,
+                "playercount": playercount,
+            }
+            top_items.append(info)
+
+        data_title = soup.select_one("h1.title-big").text.strip()
+        data_info = {
+            "data_title": data_title,
+            "data": top_items,
+        }
+
+        results[key] = data_info
 
     return results
 
