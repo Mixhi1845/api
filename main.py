@@ -23,7 +23,7 @@ def home():
             Li(A("✅ billboard-global-200", href="/api/v1/billboard-global-200")),
             Li(A("✅ imdb", href="/api/v1/imdb")),
             Li(A("✅ netflix-top-10", href="/api/v1/netflix-top-10")),
-            Li(A("✅ steam-sales", href="/api/v1/steam-sales")),
+            Li(A("✅ steam-most-popular", href="/api/v1/steam-most-popular")),
         ),
     )
 
@@ -174,40 +174,39 @@ def billboard():
         chart_rows = soup.select("div.o-chart-results-list-row-container")
 
         for list_item in chart_rows[:25]:
-            id_tag = list_item.select_one("li.o-chart-results-list__item span.c-label")
-            id = int(id_tag.text.strip()) if id_tag else "N/A"
-
-            image_tag = list_item.select_one("img.c-lazy-image__img")
-            if image_tag:
-                # Check for the lazy-loaded image source
-                image = image_tag.get("data-src") or image_tag.get("src")
-            else:
-                image = "N/A"
-
-            title_tag = list_item.select_one("h3.c-title")
-            title = title_tag.text.strip() if title_tag else "N/A"
-
-            artist_tag = list_item.select_one("span.c-label")
-            artist = artist_tag.text.strip() if artist_tag else "N/A"
-
-            type_tag = list_item.select_one(
-                "li.o-chart-results-list__item:nth-of-type(3) span.c-label"
+            col1_item = list_item.select_one(
+                f"li.o-chart-results-list__item:nth-of-type({1})"
             )
-            type = type_tag.text.strip().replace("\n", "") if type_tag else "N/A"
+            if col1_item:
+                id = int(col1_item.select_one("span.c-label").text.strip())
 
-            peak_tag = list_item.select_one(
-                "li.o-chart-results-list__item:nth-of-type(5) span.c-label"
+            col3_item = list_item.select_one(
+                f"li.o-chart-results-list__item:nth-of-type({3})"
             )
-            peak = int(peak_tag.text.strip()) if peak_tag else "N/A"
+            if col3_item:
+                type = col3_item.select_one("span.c-label")
+                if type:
+                    type = type.text.strip().replace("\n", "")
+                else:
+                    type = None
 
-            wks_tag = list_item.select_one(
-                "li.o-chart-results-list__item:nth-of-type(6) span.c-label"
-            )
-            wks = int(wks_tag.text.strip()) if wks_tag else "N/A"
+            col4_item = list_item.select_one(f"li.lrv-u-width-100p")
+            if col4_item:
+                title = col4_item.select_one("h3.c-title").text.strip()
+                artist = col4_item.select_one("span.c-label").text.strip()
+                col4_1_item = list_item.select_one(
+                    f"li.o-chart-results-list__item:nth-of-type({5})"
+                )
+                if col4_1_item:
+                    peak = int(col4_1_item.select_one("span.c-label").text.strip())
+                col4_2_item = list_item.select_one(
+                    f"li.o-chart-results-list__item:nth-of-type({6})"
+                )
+                if col4_2_item:
+                    wks = int(col4_2_item.select_one("span.c-label").text.strip())
 
             info = {
                 "id": id,
-                "image": image,
                 "title": title,
                 "artist": artist,
                 "type": type,
@@ -229,16 +228,10 @@ def billboard():
             if soup.select("p.c-tagline")
             else "N/A"
         )
-        data_date = (
-            soup.select("p.c-tagline")[6].text.strip()
-            if len(soup.select("p.c-tagline")) > 6
-            else "N/A"
-        )
 
         nested_data = {
             "data_title": data_title,
             "data_desc": data_desc,
-            "data_date": data_date,
             "data": top_items,
         }
 
@@ -370,7 +363,7 @@ def netflix():
                 episode = "Season " + episode.strip()  # Retain "Season" keyword
             else:
                 title_part = title
-                episode = "N/A"
+                episode = None
 
             title = title_part.strip()
             wks = int(cells[2].text) if cells[2] else "N/A"
@@ -400,7 +393,7 @@ def netflix():
     return results
 
 
-@app.get("/api/v1/steam-sales")
+@app.get("/api/v1/steam-most-popular")
 def steam():
     urls = {
         "games": "https://steamplayercount.com/popular",
