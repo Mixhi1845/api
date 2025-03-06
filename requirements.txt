@@ -1,4 +1,4 @@
-beautifulsoup4==4.12.3
-python-fasthtml==0.6.10
+beautifulsoup4==4.13.3
+python-fasthtml==0.12.4
 requests==2.32.3
-uvicorn==0.31.1
+uvicorn==0.34

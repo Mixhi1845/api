@@ -1,7 +1,7 @@
 from fasthtml.common import *
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
+from datetime import datetime
 
 app = FastHTML()
 
@@ -9,21 +9,46 @@ app = FastHTML()
 @app.get("/")
 def home():
     return (
-        Title("Vitrina API"),
+        Title("Personal API"),
         Socials(
             title="API Index",
-            site_name="Vitrina API",
-            description="The API for the chart agregator Vitrina",
-            image="https://vercel.fyi/fasthtml-og",
-            url="https://api.vitrina.michaelwagner.cc",
+            site_name="Personal API",
+            image="",
+            description="The API for my personal Projects",
+            url="https://api.michaelwagner.cc",
         ),
         Ul(
-            Li(A("✅ pw-top-10", href="/api/v1/pw-top-10")),
-            Li(A("✅ appstore-iphone", href="/api/v1/appstore-iphone")),
-            Li(A("✅ billboard-global-200", href="/api/v1/billboard-global-200")),
-            Li(A("✅ imdb", href="/api/v1/imdb")),
-            Li(A("✅ netflix-top-10", href="/api/v1/netflix-top-10")),
-            Li(A("✅ steam-most-popular", href="/api/v1/steam-most-popular")),
+            Li(A("chart", href="/api-chart")),
+            Li(A("news", href="/api-news")),
+        ),
+    )
+
+
+@app.get("/api-chart")
+def home():
+    return (
+        Title("Personal API"),
+        Ul(
+            Li(A("pw-top-10", href="/api/v1/pw-top-10")),
+            Li(A("appstore-iphone", href="/api/v1/appstore-iphone")),
+            Li(A("billboard-global-200", href="/api/v1/billboard-global-200")),
+            Li(A("imdb", href="/api/v1/imdb")),
+            Li(A("netflix-top-10", href="/api/v1/netflix-top-10")),
+            Li(A("steam-most-popular", href="/api/v1/steam-most-popular")),
+        ),
+    )
+
+
+@app.get("/api-news")
+def home():
+    return (
+        Title("Personal API"),
+        Ul(
+            Li(A("❌the-verge", href="/api/rss/the-verge")),
+            Li(A("❌its-nice-that", href="/api/rss/its-nice-that")),
+            Li(A("❌ars-technica", href="/api/rss/ars-technica")),
+            Li(A("hacker-news", href="/api/rss/hacker-news")),
+            Li(A("❌dhbw-heidenheim", href="/api/rss/dhbw-heidenheim")),
         ),
     )
 
@@ -434,6 +459,78 @@ def steam():
         results[key] = data_info
 
     return results
+
+
+###                             ###
+###     RSS FEEDS FOR NEWS      ###
+###                             ###
+
+
+@app.get("/api/rss/hacker-news")
+def hackernews():
+    urls = {
+        "hacker-news": "https://news.ycombinator.com/front",
+    }
+
+    # Create RSS feed structure with proper namespaces and formatting
+    rss = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    rss += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n'
+    rss += "<channel>\n"
+    rss += "<title>Hacker News Top Stories</title>\n"
+    rss += "<description>Latest stories from Hacker News</description>\n"
+    rss += "<link>https://news.ycombinator.com</link>\n"
+    rss += "<language>en-US</language>\n"
+    rss += f'<lastBuildDate>{datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")}</lastBuildDate>\n'
+    rss += '<atom:link href="https://api.michaelwagner.cc/" rel="self" type="application/rss+xml; charset=UTF-8" />\n'
+
+    results = {}
+
+    for key, url in urls.items():
+        page = requests.get(url)
+        soup = BeautifulSoup(page.content, "html.parser")
+
+        top_items = []
+        submission_rows = soup.find_all("span", class_="titleline")
+
+        for row in submission_rows[:5]:
+            anchor = row.find("a")
+            if anchor:
+                title = (
+                    anchor.text.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                )
+                link = anchor.get("href")
+                pub_date = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
+
+                # Add item to RSS feed with required elements
+                rss += "<item>\n"
+                rss += f"<title>{title}</title>\n"
+                rss += f"<link>{link}</link>\n"
+                rss += f'<guid isPermaLink="true">{link}</guid>\n'
+                rss += f"<pubDate>{pub_date}</pubDate>\n"
+                rss += f"<description><![CDATA[{title}]]></description>\n"
+                rss += "</item>\n"
+
+                info = {
+                    "title": title,
+                    "url": link,
+                }
+                top_items.append(info)
+
+        data_info = {
+            "data": top_items,
+        }
+        results[key] = data_info
+
+    # Close RSS tags
+    rss += "</channel>\n"
+    rss += "</rss>"
+
+    # Set proper content type header when serving the feed
+    headers = {"Content-Type": "application/rss+xml; charset=UTF-8"}
+
+    return {"rss": rss, "headers": headers, "json": results}
 
 
 serve()
