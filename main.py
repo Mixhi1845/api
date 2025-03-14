@@ -9,13 +9,12 @@ app = FastHTML()
 @app.get("/")
 def home():
     return (
-        Title("Vitrina API"),
+        Title("Personal API"),
         Socials(
             title="API Index",
-            site_name="Vitrina API",
-            description="The API for the chart agregator Vitrina",
-            image="https://vercel.fyi/fasthtml-og",
-            url="https://api.vitrina.michaelwagner.cc",
+            site_name="Personal API",
+            description="The API for my personal Projects",
+            url="https://api.michaelwagner.cc",
         ),
         Ul(
             Li(A("✅ pw-top-10", href="/api/v1/pw-top-10")),
